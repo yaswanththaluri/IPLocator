@@ -1,11 +1,10 @@
 package com.example.yaswanththaluri.iplocator;
 
 import android.app.LoaderManager;
+import android.content.AsyncTaskLoader;
 import android.content.Context;
 import android.content.Intent;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
-import android.os.AsyncTask;
+import android.content.Loader;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -13,14 +12,9 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
 import android.widget.TextView;
-
 import org.json.JSONException;
 import org.json.JSONObject;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,77 +24,57 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.Charset;
 
-public class Info extends AppCompatActivity {
-    String ip;
-
+public class Info extends AppCompatActivity implements LoaderManager.LoaderCallbacks<Event>, SwipeRefreshLayout.OnRefreshListener {
     public static final String LOG_TAG = Info.class.getSimpleName();
     public static String REQUESTURL = "http://ip-api.com/json/";
-//    SwipeRefreshLayout swipe;
-
-
-
+    private static int LOADER_ID = 0;
+    String ip;
+    SwipeRefreshLayout swipe;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_info);
 
-//        swipe = (SwipeRefreshLayout) findViewById(R.id.swiperefresh);
-//        swipe.setOnRefreshListener(Info.this);
-//        swipe.setColorSchemeColors(getResources().getColor(R.color.colorAccent));
+        swipe = (SwipeRefreshLayout) findViewById(R.id.swiperefresh);
+        swipe.setOnRefreshListener(Info.this);
+        swipe.setColorSchemeColors(getResources().getColor(R.color.colorAccent));
 
         Bundle extras = getIntent().getExtras();
-        if(extras != null)
-             ip = extras.getString("IPADDRESS");
-
-        LinearLayout L = (LinearLayout)findViewById(R.id.nointernet);
-        LinearLayout r = (LinearLayout)findViewById(R.id.mainlayout);
+        if (extras != null)
+            ip = extras.getString("IPADDRESS");
 
 
-        TextView t =(TextView)findViewById(R.id.enteredip);
+
+        TextView t = (TextView) findViewById(R.id.enteredip);
         t.setText(ip);
 
-        REQUESTURL = REQUESTURL+ip;
+        REQUESTURL = REQUESTURL + ip;
 
 
-        try
-        {
-            if(isInternetConnectionAvailable())
-        {
-            r.setVisibility(View.VISIBLE);
-            L.setVisibility(View.INVISIBLE);
-//            IpAsyncTask task = new IpAsyncTask();
-//            task.execute();
-
-        }
-        }
-        catch (Exception e)
-        {
-            L.setVisibility(View.VISIBLE);
-            r.setVisibility(View.INVISIBLE);
-        }
-
-        Button b = (Button)findViewById(R.id.anotherid);
+        Button b = (Button) findViewById(R.id.anotherid);
         b.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 finish();
-                Intent i= new Intent(Info.this, MainActivity.class);
+                Intent i = new Intent(Info.this, MainActivity.class);
                 startActivity(i);
             }
         });
 
 
-
+        getLoaderManager().initLoader(LOADER_ID, null, this).forceLoad();
     }
 
-    public void updateUi(Event ip)
-    {
+    public void updateUi(Event ip) {
         TextView cityTextView = (TextView) findViewById(R.id.city);
         cityTextView.setText(ip.city);
 
         TextView regionTextView = (TextView) findViewById(R.id.regionname);
         regionTextView.setText(ip.regionname);
+
+        TextView orgTextView = (TextView) findViewById(R.id.org);
+        orgTextView.setText(ip.organisation);
 
         TextView countryTextView = (TextView) findViewById(R.id.country);
         countryTextView.setText(ip.country);
@@ -110,38 +84,62 @@ public class Info extends AppCompatActivity {
 
         TextView lonTextView = (TextView) findViewById(R.id.longitude);
         lonTextView.setText(ip.longitude);
+
+
     }
 
-    private boolean isInternetConnectionAvailable(){
-        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
-        return activeNetwork.isConnected();
+    @Override
+    public Loader<Event> onCreateLoader(int id, Bundle args) {
+
+        return new IpLoader(this);
     }
 
-    private class IpAsyncTask extends AsyncTask<URL, Void, Event>
-    {
+    @Override
+    public void onLoadFinished(Loader<Event> loader, Event data) {
+        swipe.setRefreshing(false);
+        if (data == null) {
+            return;
+        }
+        updateUi(data);
+        REQUESTURL = "http://ip-api.com/json/";
+    }
 
-        @Override
-        protected Event doInBackground(URL... urls) {
-            URL url = createUrl(REQUESTURL);
+    @Override
+    public void onLoaderReset(Loader<Event> loader) {
 
-            String jsonResponse = "";
-            try {
-                jsonResponse = makeHttpRequest(url);
-            } catch (IOException e) {
-                // TODO Handle the IOException
-            }
+    }
 
-            Event ip =extractFeatureFromJson(jsonResponse);
-            return ip;
+    @Override
+    public void onRefresh() {
+        getLoaderManager().restartLoader(LOADER_ID, null, this);
+    }
+
+    public static class IpLoader extends AsyncTaskLoader<Event> {
+        private IpLoader(Context context) {
+            super(context);
         }
 
         @Override
-        protected void onPostExecute(Event ip) {
-            if (ip == null) {
-                return;
+        protected void onStartLoading() {
+            super.onStartLoading();
+        }
+
+
+        @Override
+        public Event loadInBackground() {
+            String jsonResponse = "";
+            Event ip = null;
+            URL url = createUrl(REQUESTURL);
+
+            try {
+                Log.i("---------", REQUESTURL);
+                jsonResponse = makeHttpRequest(url);
+
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-            updateUi(ip);
+            ip = extractFeatureFromJson(jsonResponse);
+            return ip;
         }
 
         private URL createUrl(String stringUrl) {
@@ -155,12 +153,10 @@ public class Info extends AppCompatActivity {
             return url;
         }
 
-        private String makeHttpRequest(URL url) throws IOException
-        {
+        private String makeHttpRequest(URL url) throws IOException {
             String jsonResponse = "";
 
-            if(url==null)
-            {
+            if (url == null) {
                 return jsonResponse;
             }
             HttpURLConnection urlConnection = null;
@@ -173,8 +169,7 @@ public class Info extends AppCompatActivity {
                 urlConnection.connect();
 
 
-                if(urlConnection.getResponseCode() == 200)
-                {
+                if (urlConnection.getResponseCode() == 200) {
                     inputStream = urlConnection.getInputStream();
                     jsonResponse = readFromStream(inputStream);
                 }
@@ -190,7 +185,31 @@ public class Info extends AppCompatActivity {
                     inputStream.close();
                 }
             }
+
             return jsonResponse;
+        }
+
+        private Event extractFeatureFromJson(String ipJSON) {
+            if (TextUtils.isEmpty(ipJSON)) {
+                return null;
+            }
+
+            try {
+                JSONObject baseJsonResponse = new JSONObject(ipJSON);
+                String city = baseJsonResponse.getString("city");
+                String region = baseJsonResponse.getString("regionName");
+                String country = baseJsonResponse.getString("country");
+                String latitude = baseJsonResponse.getString("lat");
+                String longitude = baseJsonResponse.getString("lon");
+                String org = baseJsonResponse.getString("org");
+
+
+                return new Event(city, region, country, latitude, longitude, org);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+
+            return null;
         }
 
         private String readFromStream(InputStream inputStream) throws IOException {
@@ -205,31 +224,6 @@ public class Info extends AppCompatActivity {
                 }
             }
             return output.toString();
-        }
-
-        private Event extractFeatureFromJson(String ipJSON)
-        {
-            if(TextUtils.isEmpty(ipJSON))
-            {
-                return null;
-            }
-
-            try
-            {
-                JSONObject baseJsonResponse = new JSONObject(ipJSON);
-                String city = baseJsonResponse.getString("city");
-                String region = baseJsonResponse.getString("regionName");
-                String country = baseJsonResponse.getString("country");
-                String latitude = baseJsonResponse.getString("lat");
-                String longitude = baseJsonResponse.getString("lon");
-
-                return new Event(city, region, country, latitude, longitude);
-            }
-             catch (JSONException e) {
-                e.printStackTrace();
-            }
-
-            return null;
         }
     }
 
