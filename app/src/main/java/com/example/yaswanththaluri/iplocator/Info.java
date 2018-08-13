@@ -101,7 +101,6 @@ public class Info extends AppCompatActivity implements LoaderManager.LoaderCallb
             return;
         }
         updateUi(data);
-        REQUESTURL = "http://ip-api.com/json/";
     }
 
     @Override
@@ -130,9 +129,11 @@ public class Info extends AppCompatActivity implements LoaderManager.LoaderCallb
             String jsonResponse = "";
             Event ip = null;
             URL url = createUrl(REQUESTURL);
+            REQUESTURL = "http://ip-api.com/json/";
 
             try {
                 Log.i("---------", REQUESTURL);
+
                 jsonResponse = makeHttpRequest(url);
 
             } catch (IOException e) {
