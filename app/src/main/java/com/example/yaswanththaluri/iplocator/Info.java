@@ -5,16 +5,22 @@ import android.content.AsyncTaskLoader;
 import android.content.Context;
 import android.content.Intent;
 import android.content.Loader;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.net.Uri;
+import android.os.Bundle;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.TextView;
+
 import org.json.JSONException;
 import org.json.JSONObject;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,6 +34,7 @@ public class Info extends AppCompatActivity implements LoaderManager.LoaderCallb
     public static final String LOG_TAG = Info.class.getSimpleName();
     public static String REQUESTURL = "http://ip-api.com/json/";
     private static int LOADER_ID = 0;
+    public String lat, lon;
     String ip;
     SwipeRefreshLayout swipe;
 
@@ -43,7 +50,6 @@ public class Info extends AppCompatActivity implements LoaderManager.LoaderCallb
         Bundle extras = getIntent().getExtras();
         if (extras != null)
             ip = extras.getString("IPADDRESS");
-
 
 
         TextView t = (TextView) findViewById(R.id.enteredip);
@@ -62,11 +68,45 @@ public class Info extends AppCompatActivity implements LoaderManager.LoaderCallb
             }
         });
 
+        Button b2 = (Button) findViewById(R.id.map);
+        b2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                maps();
+            }
+        });
 
-        getLoaderManager().initLoader(LOADER_ID, null, this).forceLoad();
+        if (isNetworkAvailable()) {
+            getLoaderManager().initLoader(LOADER_ID, null, this).forceLoad();
+        } else {
+            LinearLayout l = (LinearLayout) findViewById(R.id.main);
+            l.setVisibility(View.INVISIBLE);
+            LinearLayout l2 = (LinearLayout) findViewById(R.id.network);
+            l2.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private boolean isNetworkAvailable() {
+        ConnectivityManager connectivityManager
+                = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+        return activeNetworkInfo != null && activeNetworkInfo.isConnected();
+    }
+
+    public void maps() {
+        Uri gmmIntentUri = Uri.parse("geo:" + lat + "," + lon);
+        Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
+        mapIntent.setPackage("com.google.android.apps.maps");
+        startActivity(mapIntent);
     }
 
     public void updateUi(Event ip) {
+
+        Log.i("status", ip.status);
+
+
+        lat = ip.lalitude;
+        lon = ip.longitude;
         TextView cityTextView = (TextView) findViewById(R.id.city);
         cityTextView.setText(ip.city);
 
@@ -85,7 +125,6 @@ public class Info extends AppCompatActivity implements LoaderManager.LoaderCallb
         TextView lonTextView = (TextView) findViewById(R.id.longitude);
         lonTextView.setText(ip.longitude);
 
-
     }
 
     @Override
@@ -98,6 +137,12 @@ public class Info extends AppCompatActivity implements LoaderManager.LoaderCallb
     public void onLoadFinished(Loader<Event> loader, Event data) {
         swipe.setRefreshing(false);
         if (data == null) {
+            LinearLayout l = (LinearLayout) findViewById(R.id.mainlayout);
+            l.setVisibility(View.INVISIBLE);
+            TextView t = (TextView) findViewById(R.id.privateid);
+            t.setVisibility(View.VISIBLE);
+            Button b2 = (Button) findViewById(R.id.map);
+            b2.setEnabled(false);
             return;
         }
         updateUi(data);
@@ -132,7 +177,6 @@ public class Info extends AppCompatActivity implements LoaderManager.LoaderCallb
             REQUESTURL = "http://ip-api.com/json/";
 
             try {
-                Log.i("---------", REQUESTURL);
 
                 jsonResponse = makeHttpRequest(url);
 
@@ -203,9 +247,10 @@ public class Info extends AppCompatActivity implements LoaderManager.LoaderCallb
                 String latitude = baseJsonResponse.getString("lat");
                 String longitude = baseJsonResponse.getString("lon");
                 String org = baseJsonResponse.getString("org");
+                String status = baseJsonResponse.getString("status");
 
 
-                return new Event(city, region, country, latitude, longitude, org);
+                return new Event(city, region, country, latitude, longitude, org, status);
             } catch (JSONException e) {
                 e.printStackTrace();
             }
